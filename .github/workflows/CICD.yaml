@@ -311,7 +311,11 @@ jobs:
 
   Deploy:
     needs: [ Initialization, Build, BuildPP ]
-    if: (!cancelled()) && (needs.Build.result == 'success' || needs.Build.result == 'skipped') && (needs.BuildPP.result == 'success' || needs.BuildPP.result == 'skipped') && needs.Initialization.outputs.environmentCount > 0
+    if: >
+      (!cancelled()) &&
+      (needs.Build.result == 'success') &&
+      (needs.BuildPP.result == 'success' || needs.BuildPP.result == 'skipped') &&
+      needs.Initialization.outputs.environmentCount > 0
     strategy: ${{ fromJson(needs.Initialization.outputs.environmentsMatrixJson) }}
     runs-on: ${{ fromJson(matrix.os) }}
     name: Deploy to ${{ matrix.environment }}
@@ -334,6 +338,13 @@ jobs:
           ACTIONS_RUNNER_DISABLE_NODE_MAGLEV: 1
         with:
           path: '.artifacts'
+
+      - name: Verify artifacts exist
+        shell: powershell
+        run: |
+          if (-not (Test-Path ".artifacts")) {
+            throw "No artifacts were produced by the build. Build likely skipped or no AL project was detected."
+          }
 
       - name: Read settings
         uses: microsoft/AL-Go-Actions/ReadSettings@v10.0
@@ -366,17 +377,6 @@ jobs:
           environmentName: ${{ matrix.environment }}
           artifactsFolder: '.artifacts'
           type: 'CD'
-          deploymentEnvironmentsJson: ${{ needs.Initialization.outputs.deploymentEnvironmentsJson }}
-
-      - name: Deploy to Power Platform
-        if: env.type == 'PTE' && env.powerPlatformSolutionFolder != ''
-        uses: microsoft/AL-Go-Actions/DeployPowerPlatform@v10.0
-        env:
-          Secrets: '${{ steps.ReadSecrets.outputs.Secrets }}'
-        with:
-          shell: powershell
-          environmentName: ${{ matrix.environment }}
-          artifactsFolder: '.artifacts'
           deploymentEnvironmentsJson: ${{ needs.Initialization.outputs.deploymentEnvironmentsJson }}
 
   Deliver:
